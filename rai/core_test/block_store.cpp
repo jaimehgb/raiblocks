@@ -183,14 +183,14 @@ TEST (bootstrap, simple)
     rai::send_block block1 (0, 1, 2, rai::keypair ().prv, 4, 5);
 	rai::transaction transaction (store.environment, nullptr, true);
     auto block2 (store.unchecked_get (transaction, block1.previous ()));
-    ASSERT_EQ (nullptr, block2);
+    ASSERT_TRUE (block2.empty ());
     store.unchecked_put (transaction, block1.previous (), block1);
     auto block3 (store.unchecked_get (transaction, block1.previous ()));
-    ASSERT_NE (nullptr, block3);
-    ASSERT_EQ (block1, *block3);
-    store.unchecked_del (transaction, block1.previous ());
+    ASSERT_FALSE (block3.empty ());
+    ASSERT_EQ (block1, *block3 [0]);
+    store.unchecked_del (transaction, block1.previous (), block1);
     auto block4 (store.unchecked_get (transaction, block1.previous ()));
-    ASSERT_EQ (nullptr, block4);
+    ASSERT_TRUE (block4.empty ());
 }
 
 TEST (checksum, simple)
@@ -685,7 +685,7 @@ TEST (block_store, upgrade_v4_v5)
 		rai::account_info info;
 		store.account_get (transaction, rai::test_genesis_key.pub, info);
 		rai::keypair key0;
-		rai::send_block block0 (info.head, key0.pub, rai::genesis_amount - rai::Grai_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+		rai::send_block block0 (info.head, key0.pub, rai::genesis_amount - rai::Gxrb_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
 		ASSERT_EQ (rai::process_result::progress, ledger.process (transaction, block0).code);
 		hash = block0.hash ();
 		auto original (store.block_get (transaction, info.head));
@@ -760,3 +760,94 @@ TEST (block_store, upgrade_v5_v6)
 	ASSERT_EQ (1, info.block_count);
 }
 
+TEST (block_store, upgrade_v6_v7)
+{
+	auto path (rai::unique_path ());
+	{
+		bool init (false);
+		rai::block_store store (init, path);
+		ASSERT_FALSE (init);
+		rai::transaction transaction (store.environment, nullptr, true);
+		rai::genesis genesis;;
+		genesis.initialize (transaction, store);
+		store.version_put (transaction, 6);
+		rai::send_block send1 (0, 0, 0, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+		store.unchecked_put (transaction, send1.hash (), send1);
+		ASSERT_NE (store.unchecked_end (), store.unchecked_begin (transaction));
+	}
+	bool init (false);
+	rai::block_store store (init, path);
+	ASSERT_FALSE (init);
+	rai::transaction transaction (store.environment, nullptr, false);
+	ASSERT_EQ (store.unchecked_end (), store.unchecked_begin (transaction));
+}
+
+// Databases need to be dropped in order to convert to dupsort compatible
+TEST (block_store, change_dupsort)
+{
+	auto path (rai::unique_path ());
+	bool init (false);
+	rai::block_store store (init, path);
+	rai::transaction transaction (store.environment, nullptr, true);
+	ASSERT_EQ (0, mdb_drop (transaction, store.unchecked, 1));
+	ASSERT_EQ (0, mdb_dbi_open (transaction, "unchecked", MDB_CREATE, &store.unchecked));
+	rai::send_block send1 (0, 0, 0, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+	rai::send_block send2 (1, 0, 0, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+	ASSERT_NE (send1.hash (), send2.hash ());
+	store.unchecked_put (transaction, send1.hash (), send1);
+	store.unchecked_put (transaction, send1.hash (), send2);
+	{
+		auto iterator1 (store.unchecked_begin (transaction));
+		++iterator1;
+		ASSERT_EQ (store.unchecked_end (), iterator1);
+	}
+	ASSERT_EQ (0, mdb_drop (transaction, store.unchecked, 0));
+	mdb_dbi_close (store.environment, store.unchecked);
+	ASSERT_EQ (0, mdb_dbi_open (transaction, "unchecked", MDB_CREATE | MDB_DUPSORT, &store.unchecked));
+	store.unchecked_put (transaction, send1.hash (), send1);
+	store.unchecked_put (transaction, send1.hash (), send2);
+	{
+		auto iterator1 (store.unchecked_begin (transaction));
+		++iterator1;
+		ASSERT_EQ (store.unchecked_end (), iterator1);
+	}
+	ASSERT_EQ (0, mdb_drop (transaction, store.unchecked, 1));
+	ASSERT_EQ (0, mdb_dbi_open (transaction, "unchecked", MDB_CREATE | MDB_DUPSORT, &store.unchecked));
+	store.unchecked_put (transaction, send1.hash (), send1);
+	store.unchecked_put (transaction, send1.hash (), send2);
+	{
+		auto iterator1 (store.unchecked_begin (transaction));
+		++iterator1;
+		ASSERT_NE (store.unchecked_end (), iterator1);
+		++iterator1;
+		ASSERT_EQ (store.unchecked_end (), iterator1);
+	}
+}
+
+TEST (block_store, upgrade_v7_v8)
+{
+	auto path (rai::unique_path ());
+	{
+		bool init (false);
+		rai::block_store store (init, path);
+		rai::transaction transaction (store.environment, nullptr, true);
+		ASSERT_EQ (0, mdb_drop (transaction, store.unchecked, 1));
+		ASSERT_EQ (0, mdb_dbi_open (transaction, "unchecked", MDB_CREATE, &store.unchecked));
+		store.version_put (transaction, 7);
+	}
+	bool init (false);
+	rai::block_store store (init, path);
+	ASSERT_FALSE (init);
+	rai::transaction transaction (store.environment, nullptr, true);
+	rai::send_block send1 (0, 0, 0, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+	rai::send_block send2 (1, 0, 0, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+	store.unchecked_put (transaction, send1.hash (), send1);
+	store.unchecked_put (transaction, send1.hash (), send2);
+	{
+		auto iterator1 (store.unchecked_begin (transaction));
+		++iterator1;
+		ASSERT_NE (store.unchecked_end (), iterator1);
+		++iterator1;
+		ASSERT_EQ (store.unchecked_end (), iterator1);
+	}
+}

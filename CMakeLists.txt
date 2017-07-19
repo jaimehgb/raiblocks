@@ -2,8 +2,8 @@ cmake_minimum_required (VERSION 2.8.11)
 project (rai)
 
 set (CPACK_PACKAGE_VERSION_MAJOR "7")
-set (CPACK_PACKAGE_VERSION_MINOR "8")
-set (CPACK_PACKAGE_VERSION_PATCH "4")
+set (CPACK_PACKAGE_VERSION_MINOR "9")
+set (CPACK_PACKAGE_VERSION_PATCH "0")
 
 set (RAIBLOCKS_GUI OFF CACHE BOOL "")
 set (RAIBLOCKS_TEST OFF CACHE BOOL "")
@@ -212,7 +212,6 @@ if (RAIBLOCKS_TEST)
 	add_executable (core_test
 		rai/core_test/block.cpp
 		rai/core_test/block_store.cpp
-		rai/core_test/block_synchronization.cpp
 		rai/core_test/node.cpp
 		rai/core_test/conflicts.cpp
 		rai/core_test/daemon.cpp
@@ -273,7 +272,7 @@ add_executable (rai_node
 SET (ACTIVE_NETWORK rai_live_network CACHE STRING "Selects which network parameters are used")
 set_property (CACHE ACTIVE_NETWORK PROPERTY STRINGS rai_test_network rai_beta_network rai_live_network)
 
-set_target_properties (cryptopp PROPERTIES COMPILE_FLAGS "-DCRYPTOPP_DISABLE_ASM")
+set_target_properties (cryptopp PROPERTIES COMPILE_FLAGS "${PLATFORM_CXX_FLAGS} ${PLATFORM_COMPILE_FLAGS}")
 set_target_properties (argon2 PROPERTIES COMPILE_FLAGS "${PLATFORM_CXX_FLAGS} ${PLATFORM_COMPILE_FLAGS}")
 set_target_properties (blake2 PROPERTIES COMPILE_FLAGS "${PLATFORM_C_FLAGS} ${PLATFORM_COMPILE_FLAGS} -D__SSE2__")
 set_target_properties (ed25519 PROPERTIES COMPILE_FLAGS "${PLATFORM_C_FLAGS} ${PLATFORM_COMPILE_FLAGS} -DED25519_CUSTOMHASH -DED25519_CUSTOMRNG")

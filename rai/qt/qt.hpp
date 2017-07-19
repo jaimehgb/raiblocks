@@ -26,6 +26,7 @@ namespace rai_qt {
     {
     public:
         settings (rai_qt::wallet &);
+		void refresh_representative ();
         void activate ();
         void update_locked (bool, bool);
         QWidget * window;
@@ -50,20 +51,27 @@ namespace rai_qt {
     {
     public:
 		advanced_actions (rai_qt::wallet &);
-		void refresh_count ();
-		QLabel * block_count_text;
-		QLabel * block_count;
+		void refresh_wallet_balance ();
+		QLabel * wallet_balance_label;
 		QWidget * window;
 		QVBoxLayout * layout;
 		QPushButton * accounts;
 		QPushButton * show_ledger;
 		QPushButton * show_peers;
 		QPushButton * search_for_receivables;
+		QPushButton * bootstrap;
 		QPushButton * wallet_refresh;
 		QPushButton * create_block;
 		QPushButton * enter_block;
 		QPushButton * block_viewer;
 		QPushButton * account_viewer;
+		QWidget * scale_window;
+		QHBoxLayout * scale_layout;
+		QLabel * scale_label;
+		QButtonGroup * ratio_group;
+		QRadioButton * mrai;
+		QRadioButton * krai;
+		QRadioButton * rai;
 		QPushButton * back;
 
 		QWidget * ledger_window;
@@ -155,10 +163,6 @@ namespace rai_qt {
 		QWidget * balance_window;
 		QHBoxLayout * balance_layout;
         QLabel * balance_label;
-		QButtonGroup * ratio_group;
-		QRadioButton * mrai;
-		QRadioButton * krai;
-		QRadioButton * rai;
         rai_qt::wallet & wallet;
     };
     class accounts
@@ -244,6 +248,9 @@ namespace rai_qt {
 		QLabel * account_label;
 		QLineEdit * account_line;
 		QPushButton * refresh;
+		QWidget * balance_window;
+		QHBoxLayout * balance_layout;
+		QLabel * balance_label;
 		rai_qt::history history;
 		QPushButton * back;
 		rai::account account;

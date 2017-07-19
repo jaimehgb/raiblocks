@@ -3,6 +3,7 @@
 #include <rai/utility.hpp>
 
 #include <beast/http.hpp>
+#include <beast/core/flat_buffer.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -62,7 +63,7 @@ public:
 	std::shared_ptr <rai::node> node;
 	rai::rpc & rpc;
 	boost::asio::ip::tcp::socket socket;
-	beast::streambuf buffer;
+	beast::flat_buffer buffer;
 	beast::http::request <beast::http::string_body> request;
 	beast::http::response <beast::http::string_body> res;
 };
@@ -92,6 +93,7 @@ public:
 	void account_block_count ();
 	void account_create ();
 	void account_get ();
+	void account_history ();
 	void account_key ();
 	void account_list ();
 	void account_move ();
@@ -99,12 +101,18 @@ public:
 	void account_representative ();
 	void account_representative_set ();
 	void account_weight ();
+	void accounts_balances ();
+	void accounts_frontiers ();
+	void accounts_pending ();
 	void available_supply ();
 	void block ();
+	void blocks ();
 	void block_account ();
 	void block_count ();
 	void bootstrap ();
+	void bootstrap_any ();
 	void chain ();
+	void deterministic_key ();
 	void frontiers ();
 	void frontier_count ();
 	void history ();
@@ -127,13 +135,18 @@ public:
 	void process ();
 	void rai_to_raw ();
 	void rai_from_raw ();
+	void receive ();
 	void representatives ();
+	void republish ();
 	void search_pending ();
 	void send ();
 	void stop ();
+	void successors ();
 	void validate_account_number ();
 	void version ();
 	void wallet_add ();
+	void wallet_balance_total ();
+	void wallet_balances ();
 	void wallet_change_seed ();
 	void wallet_contains ();
 	void wallet_create ();
@@ -145,6 +158,7 @@ public:
 	void wallet_representative_set ();
 	void work_generate ();
 	void work_cancel ();
+	void work_validate ();
 	std::string body;
 	rai::node & node;
 	rai::rpc & rpc;

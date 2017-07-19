@@ -19,7 +19,8 @@ TEST (node, block_store_path_failure)
     auto service (boost::make_shared <boost::asio::io_service> ());
     rai::alarm alarm (*service);
 	auto path (rai::unique_path ());
-	rai::logging logging (path);
+	rai::logging logging;
+	logging.init (path);
 	rai::work_pool work (std::numeric_limits <unsigned>::max (), nullptr);
     auto node (std::make_shared <rai::node> (init, *service, 0, path, alarm, logging, work));
 	ASSERT_TRUE (node->wallets.items.empty ());
@@ -32,7 +33,8 @@ TEST (node, inactive_supply)
     auto service (boost::make_shared <boost::asio::io_service> ());
 	rai::alarm alarm (*service);
 	auto path (rai::unique_path ());
-	rai::node_config config (path);
+	rai::node_config config;
+	config.logging.init (path);
 	rai::work_pool work (std::numeric_limits <unsigned>::max (), nullptr);
 	config.inactive_supply = 10;
     auto node (std::make_shared <rai::node> (init, *service, path, alarm, config, work));
@@ -45,7 +47,8 @@ TEST (node, password_fanout)
     auto service (boost::make_shared <boost::asio::io_service> ());
 	rai::alarm alarm (*service);
 	auto path (rai::unique_path ());
-	rai::node_config config (path);
+	rai::node_config config;
+	config.logging.init (path);
 	rai::work_pool work (std::numeric_limits <unsigned>::max (), nullptr);
 	config.password_fanout = 10;
     auto node (std::make_shared <rai::node> (init, *service, path, alarm, config, work));
@@ -401,7 +404,8 @@ TEST (node, working)
 TEST (logging, serialization)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	logging1.ledger_logging_value = !logging1.ledger_logging_value;
 	logging1.ledger_duplicate_logging_value = !logging1.ledger_duplicate_logging_value;
 	logging1.network_logging_value = !logging1.network_logging_value;
@@ -418,7 +422,8 @@ TEST (logging, serialization)
 	logging1.max_size = 10;
 	boost::property_tree::ptree tree;
 	logging1.serialize_json (tree);
-	rai::logging logging2 (path);
+	rai::logging logging2;
+	logging2.init (path);
 	bool upgraded (false);
 	ASSERT_FALSE (logging2.deserialize_json (upgraded, tree));
 	ASSERT_FALSE (upgraded);
@@ -442,8 +447,10 @@ TEST (logging, upgrade_v1_v2)
 {
 	auto path1 (rai::unique_path ());
 	auto path2 (rai::unique_path ());
-	rai::logging logging1 (path1);
-	rai::logging logging2 (path2);
+	rai::logging logging1;
+	logging1.init (path1);
+	rai::logging logging2;
+	logging2.init (path2);
 	boost::property_tree::ptree tree;
 	logging1.serialize_json (tree);
 	tree.erase ("version");
@@ -457,29 +464,34 @@ TEST (logging, upgrade_v1_v2)
 TEST (node, price)
 {
 	rai::system system (24000, 1);
-	auto price1 (system.nodes [0]->price (rai::Grai_ratio, 1));
+	auto price1 (system.nodes [0]->price (rai::Gxrb_ratio, 1));
 	ASSERT_EQ (rai::node::price_max * 100.0, price1);
-	auto price2 (system.nodes [0]->price (rai::Grai_ratio * int (rai::node::free_cutoff + 1), 1));
+	auto price2 (system.nodes [0]->price (rai::Gxrb_ratio * int (rai::node::free_cutoff + 1), 1));
 	ASSERT_EQ (0, price2);
-	auto price3 (system.nodes [0]->price (rai::Grai_ratio * int (rai::node::free_cutoff + 2) / 2, 1));
+	auto price3 (system.nodes [0]->price (rai::Gxrb_ratio * int (rai::node::free_cutoff + 2) / 2, 1));
 	ASSERT_EQ (rai::node::price_max * 100.0 / 2, price3);
-	auto price4 (system.nodes [0]->price (rai::Grai_ratio * int (rai::node::free_cutoff) * 2, 1));
+	auto price4 (system.nodes [0]->price (rai::Gxrb_ratio * int (rai::node::free_cutoff) * 2, 1));
 	ASSERT_EQ (0, price4);
 }
 
 TEST (node_config, serialization)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	rai::node_config config1 (100, logging1);
 	config1.bootstrap_fraction_numerator = 10;
 	config1.receive_minimum = 10;
 	config1.inactive_supply = 10;
 	config1.password_fanout = 10;
 	config1.enable_voting = false;
+	config1.callback_address = "test";
+	config1.callback_port = 10;
+	config1.callback_target = "test";
 	boost::property_tree::ptree tree;
 	config1.serialize_json (tree);
-	rai::logging logging2 (path);
+	rai::logging logging2;
+	logging2.init (path);
 	logging2.node_lifetime_tracing_value = !logging2.node_lifetime_tracing_value;
 	rai::node_config config2 (50, logging2);
 	ASSERT_NE (config2.bootstrap_fraction_numerator, config1.bootstrap_fraction_numerator);
@@ -488,6 +500,9 @@ TEST (node_config, serialization)
 	ASSERT_NE (config2.inactive_supply, config1.inactive_supply);
 	ASSERT_NE (config2.password_fanout, config1.password_fanout);
 	ASSERT_NE (config2.enable_voting, config1.enable_voting);
+	ASSERT_NE (config2.callback_address, config1.callback_address);
+	ASSERT_NE (config2.callback_port, config1.callback_port);
+	ASSERT_NE (config2.callback_target, config1.callback_target);
 	
 	bool upgraded (false);
 	config2.deserialize_json (upgraded, tree);
@@ -498,12 +513,16 @@ TEST (node_config, serialization)
 	ASSERT_EQ (config2.inactive_supply, config1.inactive_supply);
 	ASSERT_EQ (config2.password_fanout, config1.password_fanout);
 	ASSERT_EQ (config2.enable_voting, config1.enable_voting);
+	ASSERT_EQ (config2.callback_address, config1.callback_address);
+	ASSERT_EQ (config2.callback_port, config1.callback_port);
+	ASSERT_EQ (config2.callback_target, config1.callback_target);
 }
 
 TEST (node_config, v1_v2_upgrade)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	boost::property_tree::ptree tree;
 	tree.put ("peering_port", std::to_string (0));
 	tree.put ("packet_delay_microseconds", std::to_string (0));
@@ -519,7 +538,8 @@ TEST (node_config, v1_v2_upgrade)
 	boost::property_tree::ptree preconfigured_representatives_l;
 	tree.add_child ("preconfigured_representatives", preconfigured_representatives_l);
 	bool upgraded (false);
-	rai::node_config config1 (path);
+	rai::node_config config1;
+	config1.logging.init (path);
 	ASSERT_FALSE (tree.get_child_optional ("work_peers"));
 	config1.deserialize_json (upgraded, tree);
 	ASSERT_TRUE (upgraded);
@@ -529,7 +549,8 @@ TEST (node_config, v1_v2_upgrade)
 TEST (node_config, unversioned_v2_upgrade)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	boost::property_tree::ptree tree;
 	tree.put ("peering_port", std::to_string (0));
 	tree.put ("packet_delay_microseconds", std::to_string (0));
@@ -550,7 +571,8 @@ TEST (node_config, unversioned_v2_upgrade)
 	boost::property_tree::ptree work_peers_l;
 	tree.add_child ("work_peers", work_peers_l);
 	bool upgraded (false);
-	rai::node_config config1 (path);
+	rai::node_config config1;
+	config1.logging.init (path);
 	ASSERT_FALSE (tree.get_optional <std::string> ("version"));
 	config1.deserialize_json (upgraded, tree);
 	ASSERT_TRUE (upgraded);
@@ -566,7 +588,8 @@ TEST (node_config, unversioned_v2_upgrade)
 TEST (node_config, v2_v3_upgrade)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	boost::property_tree::ptree tree;
 	tree.put ("peering_port", std::to_string (0));
 	tree.put ("packet_delay_microseconds", std::to_string (0));
@@ -588,7 +611,8 @@ TEST (node_config, v2_v3_upgrade)
 	boost::property_tree::ptree work_peers_l;
 	tree.add_child ("work_peers", work_peers_l);
 	bool upgraded (false);
-	rai::node_config config1 (path);
+	rai::node_config config1;
+	config1.logging.init (path);
 	ASSERT_FALSE (tree.get_optional <std::string> ("inactive_supply"));
 	ASSERT_FALSE (tree.get_optional <std::string> ("password_fanout"));
 	ASSERT_FALSE (tree.get_optional <std::string> ("io_threads"));
@@ -615,7 +639,8 @@ TEST (node, confirm_locked)
 TEST (node_config, random_rep)
 {
 	auto path (rai::unique_path ());
-	rai::logging logging1 (path);
+	rai::logging logging1;
+	logging1.init (path);
 	rai::node_config config1 (100, logging1);
 	auto rep (config1.random_representative ());
 	ASSERT_NE (config1.preconfigured_representatives.end (), std::find (config1.preconfigured_representatives.begin (), config1.preconfigured_representatives.end (), rep));
@@ -625,8 +650,8 @@ TEST (node, block_replace)
 {
 	rai::system system (24000, 2);
 	system.wallet (0)->insert_adhoc (rai::test_genesis_key.prv);
-	auto block1 (system.wallet (0)->send_action (rai::test_genesis_key.pub, 0, rai::Grai_ratio));
-	auto block3 (system.wallet (0)->send_action (rai::test_genesis_key.pub, 0, rai::Grai_ratio));
+	auto block1 (system.wallet (0)->send_action (rai::test_genesis_key.pub, 0, rai::Gxrb_ratio));
+	auto block3 (system.wallet (0)->send_action (rai::test_genesis_key.pub, 0, rai::Gxrb_ratio));
     ASSERT_NE (nullptr, block1);
 	auto initial_work (block1->block_work ());
 	while (system.work.work_value (block1->root (), block1->block_work ()) <= system.work.work_value (block1->root (), initial_work))
@@ -860,10 +885,10 @@ TEST (node, fork_bootstrap_flip)
 	system0.wallet (0)->insert_adhoc (rai::test_genesis_key.prv);
 	rai::block_hash latest (system0.nodes [0]->latest (rai::test_genesis_key.pub));
 	rai::keypair key1;
-	rai::send_block send1 (latest, key1.pub, rai::genesis_amount - rai::Grai_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, system0.work.generate (latest));
+	rai::send_block send1 (latest, key1.pub, rai::genesis_amount - rai::Gxrb_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, system0.work.generate (latest));
 	rai::keypair key2;
-	rai::send_block send2 (latest, key2.pub, rai::genesis_amount - rai::Grai_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, system0.work.generate (latest));
-	// Insert but don't rebroadcast, simulating well-established blocks
+	rai::send_block send2 (latest, key2.pub, rai::genesis_amount - rai::Gxrb_ratio, rai::test_genesis_key.prv, rai::test_genesis_key.pub, system0.work.generate (latest));
+	// Insert but don't rebroadcast, simulating settled blocks
 	node1.process_receive_many (send1);
 	node2.process_receive_many (send2);
 	{
@@ -1020,7 +1045,7 @@ TEST (node, fork_no_vote_quorum)
 		confirm.serialize (stream);
 	}
 	node2.network.confirm_send (confirm, bytes, node3.network.endpoint ());
-	while (node3.network.confirm_ack_count < 3)
+	while (node3.network.incoming.confirm_ack < 3)
 	{
 		system.poll ();
 	}
@@ -1045,11 +1070,11 @@ TEST (node, broadcast_elected)
 		rai::transaction transaction0 (node0->store.environment, nullptr, true);
 		rai::transaction transaction1 (node1->store.environment, nullptr, true);
 		rai::transaction transaction2 (node2->store.environment, nullptr, true);
-		rai::send_block fund_big (node0->ledger.latest (transaction0, rai::test_genesis_key.pub), rep_big.pub, rai::Grai_ratio * 5, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+		rai::send_block fund_big (node0->ledger.latest (transaction0, rai::test_genesis_key.pub), rep_big.pub, rai::Gxrb_ratio * 5, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
 		rai::open_block open_big (fund_big.hash (), rep_big.pub, rep_big.pub, rep_big.prv, rep_big.pub, 0);
-		rai::send_block fund_small (fund_big.hash (), rep_small.pub, rai::Grai_ratio * 2, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+		rai::send_block fund_small (fund_big.hash (), rep_small.pub, rai::Gxrb_ratio * 2, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
 		rai::open_block open_small (fund_small.hash (), rep_small.pub, rep_small.pub, rep_small.prv, rep_small.pub, 0);
-		rai::send_block fund_other (fund_small.hash (), rep_other.pub, rai::Grai_ratio * 1, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
+		rai::send_block fund_other (fund_small.hash (), rep_other.pub, rai::Gxrb_ratio * 1, rai::test_genesis_key.prv, rai::test_genesis_key.pub, 0);
 		rai::open_block open_other (fund_other.hash (), rep_other.pub, rep_other.pub, rep_other.prv, rep_other.pub, 0);
 		node0->generate_work (fund_big);
 		node0->generate_work (open_big);
@@ -1208,21 +1233,21 @@ TEST (node, unconfirmed_send)
 	rai::keypair key0;
 	wallet1->insert_adhoc (key0.prv);
 	wallet0->insert_adhoc (rai::test_genesis_key.prv);
-	auto send1 (wallet0->send_action (rai::genesis_account, key0.pub, 2 * rai::Mrai_ratio));
+	auto send1 (wallet0->send_action (rai::genesis_account, key0.pub, 2 * rai::Mxrb_ratio));
 	auto iterations0 (0);
-	while (node1.balance (key0.pub) != 2 * rai::Mrai_ratio || node1.bootstrap_initiator.in_progress ())
+	while (node1.balance (key0.pub) != 2 * rai::Mxrb_ratio || node1.bootstrap_initiator.in_progress ())
 	{
 		system.poll ();
 		++iterations0;
 		ASSERT_GT (200, iterations0);
 	}
 	auto latest (node1.latest (key0.pub));
-	rai::send_block send2 (latest, rai::genesis_account, rai::Mrai_ratio, key0.prv, key0.pub, node0.generate_work (latest));
+	rai::send_block send2 (latest, rai::genesis_account, rai::Mxrb_ratio, key0.prv, key0.pub, node0.generate_work (latest));
 	{
 		rai::transaction transaction (node1.store.environment, nullptr, true);
 		ASSERT_EQ (rai::process_result::progress, node1.ledger.process (transaction, send2).code);
 	}
-	auto send3 (wallet1->send_action (key0.pub, rai::genesis_account, rai::Mrai_ratio));
+	auto send3 (wallet1->send_action (key0.pub, rai::genesis_account, rai::Mxrb_ratio));
 	auto iterations (0);
 	while (node0.balance (rai::genesis_account) != rai::genesis_amount)
 	{
@@ -1244,7 +1269,7 @@ TEST (node, rep_list)
 	wallet0->insert_adhoc (rai::test_genesis_key.prv);
 	rai::keypair key1;
 	// Broadcast a confirm so others should know this is a rep node
-	wallet0->send_action (rai::test_genesis_key.pub, key1.pub, rai::Mrai_ratio);
+	wallet0->send_action (rai::test_genesis_key.pub, key1.pub, rai::Mxrb_ratio);
 	ASSERT_EQ (0, node1.peers.representatives (1).size ());
 	auto iterations (0);
 	auto done (false);
@@ -1281,7 +1306,7 @@ TEST (node, no_voting)
 	rai::keypair key1;
 	wallet1->insert_adhoc (key1.prv);
 	// Broadcast a confirm so others should know this is a rep node
-	wallet0->send_action (rai::test_genesis_key.pub, key1.pub, rai::Mrai_ratio);
+	wallet0->send_action (rai::test_genesis_key.pub, key1.pub, rai::Mxrb_ratio);
 	auto iterations (0);
 	while (node1.balance (key1.pub).is_zero ())
 	{
@@ -1289,7 +1314,7 @@ TEST (node, no_voting)
 		++iterations;
 		ASSERT_GT (200, iterations);
 	}
-	ASSERT_EQ (0, node1.network.confirm_ack_count);
+	ASSERT_EQ (0, node1.network.incoming.confirm_ack);
 }
 
 TEST (node, start_observer)
@@ -1298,7 +1323,8 @@ TEST (node, start_observer)
     auto service (boost::make_shared <boost::asio::io_service> ());
     rai::alarm alarm (*service);
 	auto path (rai::unique_path ());
-	rai::logging logging (path);
+	rai::logging logging;
+	logging.init (path);
 	rai::work_pool work (std::numeric_limits <unsigned>::max (), nullptr);
     auto node (std::make_shared <rai::node> (init, *service, 0, path, alarm, logging, work));
 	auto started (false);
@@ -1309,4 +1335,24 @@ TEST (node, start_observer)
 	node->start ();
 	ASSERT_TRUE (started);
 	node->stop ();
+}
+
+TEST (node, send_callback)
+{
+    rai::system system (24000, 1);
+    rai::keypair key2;
+	system.wallet (0)->insert_adhoc (rai::test_genesis_key.prv);
+	system.wallet (0)->insert_adhoc (key2.prv);
+	system.nodes [0]->config.callback_address = "localhost";
+	system.nodes [0]->config.callback_port = 8010;
+	system.nodes [0]->config.callback_target = "/";
+    ASSERT_NE (nullptr, system.wallet (0)->send_action (rai::test_genesis_key.pub, key2.pub, system.nodes [0]->config.receive_minimum.number ()));
+    auto iterations (0);
+    while (system.nodes [0]->balance (key2.pub).is_zero ())
+    {
+        system.poll ();
+        ++iterations;
+        ASSERT_LT (iterations, 200);
+    }
+    ASSERT_EQ (std::numeric_limits <rai::uint128_t>::max () - system.nodes [0]->config.receive_minimum.number (), system.nodes [0]->balance (rai::test_genesis_key.pub));
 }

@@ -273,6 +273,7 @@ public:
 	store_iterator (rai::store_iterator const &) = delete;
 	~store_iterator ();
 	rai::store_iterator & operator ++ ();
+	void next_dup();
 	rai::store_iterator & operator = (rai::store_iterator &&);
 	rai::store_iterator & operator = (rai::store_iterator const &) = delete;
 	rai::store_entry & operator -> ();
@@ -365,8 +366,8 @@ public:
 	
 	void unchecked_clear (MDB_txn *);
 	void unchecked_put (MDB_txn *, rai::block_hash const &, rai::block const &);
-	std::unique_ptr <rai::block> unchecked_get (MDB_txn *, rai::block_hash const &);
-	void unchecked_del (MDB_txn *, rai::block_hash const &);
+	std::vector <std::unique_ptr <rai::block>> unchecked_get (MDB_txn *, rai::block_hash const &);
+	void unchecked_del (MDB_txn *, rai::block_hash const &, rai::block const &);
 	rai::store_iterator unchecked_begin (MDB_txn *);
 	rai::store_iterator unchecked_begin (MDB_txn *, rai::block_hash const &);
 	rai::store_iterator unchecked_end ();
@@ -394,6 +395,8 @@ public:
 	void upgrade_v3_to_v4 (MDB_txn *);
 	void upgrade_v4_to_v5 (MDB_txn *);
 	void upgrade_v5_to_v6 (MDB_txn *);
+	void upgrade_v6_to_v7 (MDB_txn *);
+	void upgrade_v7_to_v8 (MDB_txn *);
 	
 	void clear (MDB_dbi);
 	

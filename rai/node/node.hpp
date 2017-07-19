@@ -123,17 +123,14 @@ class gap_information
 {
 public:
     std::chrono::system_clock::time_point arrival;
-    rai::block_hash required;
     rai::block_hash hash;
 	std::unique_ptr <rai::votes> votes;
-    std::unique_ptr <rai::block> block;
 };
 class gap_cache
 {
 public:
     gap_cache (rai::node &);
-    void add (rai::block const &, rai::block_hash);
-    std::vector <std::unique_ptr <rai::block>> get (rai::block_hash const &);
+    void add (MDB_txn *, rai::block const &);
     void vote (rai::vote const &);
     rai::uint128_t bootstrap_threshold (MDB_txn *);
 	void purge_old ();
@@ -142,7 +139,6 @@ public:
         rai::gap_information,
         boost::multi_index::indexed_by
         <
-            boost::multi_index::hashed_non_unique <boost::multi_index::member <gap_information, rai::block_hash, &gap_information::required>>,
             boost::multi_index::ordered_non_unique <boost::multi_index::member <gap_information, std::chrono::system_clock::time_point, &gap_information::arrival>>,
             boost::multi_index::hashed_unique <boost::multi_index::member <gap_information, rai::block_hash, &gap_information::hash>>
         >
@@ -258,6 +254,16 @@ public:
 	boost::asio::ip::address_v4 address;
 	std::array <mapping_protocol, 2> protocols;
 	uint64_t check_count;
+	bool on;
+};
+class message_statistics
+{
+public:
+	message_statistics ();
+    std::atomic <uint64_t> keepalive;
+    std::atomic <uint64_t> publish;
+    std::atomic <uint64_t> confirm_req;
+    std::atomic <uint64_t> confirm_ack;
 };
 class network
 {
@@ -268,7 +274,7 @@ public:
     void receive_action (boost::system::error_code const &, size_t);
     void rpc_action (boost::system::error_code const &, size_t);
 	void rebroadcast_reps (rai::block &);
-	void republish (std::chrono::system_clock::time_point const &, rai::vote const &);
+	void republish_vote (std::chrono::system_clock::time_point const &, rai::vote const &);
     void republish_block (rai::block &);
 	void republish (rai::block_hash const &, std::shared_ptr <std::vector <uint8_t>>, rai::endpoint);
     void publish_broadcast (std::vector <rai::peer_information> &, std::unique_ptr <rai::block>);
@@ -288,18 +294,16 @@ public:
     rai::node & node;
     uint64_t bad_sender_count;
     bool on;
-    uint64_t keepalive_count;
-    uint64_t publish_count;
-    uint64_t confirm_req_count;
-    uint64_t confirm_ack_count;
     uint64_t insufficient_work_count;
     uint64_t error_count;
+	rai::message_statistics incoming;
+	rai::message_statistics outgoing;
     static uint16_t const node_port = rai::rai_network == rai::rai_networks::rai_live_network ? 7075 : 54000;
 };
 class logging
 {
 public:
-	logging (boost::filesystem::path const &);
+	logging ();
     void serialize_json (boost::property_tree::ptree &) const;
 	bool deserialize_json (bool &, boost::property_tree::ptree &);
 	bool upgrade_json (unsigned, boost::property_tree::ptree &);
@@ -315,8 +319,11 @@ public:
     bool insufficient_work_logging () const;
     bool log_rpc () const;
     bool bulk_pull_logging () const;
+	bool callback_logging () const;
     bool work_generation_time () const;
     bool log_to_cerr () const;
+	void init (boost::filesystem::path const &);
+	
 	bool ledger_logging_value;
 	bool ledger_duplicate_logging_value;
 	bool vote_logging_value;
@@ -345,7 +352,7 @@ public:
 class node_config
 {
 public:
-	node_config (boost::filesystem::path const &);
+	node_config ();
 	node_config (uint16_t, rai::logging const &);
     void serialize_json (boost::property_tree::ptree &) const;
 	bool deserialize_json (bool &, boost::property_tree::ptree &);
@@ -363,6 +370,10 @@ public:
 	unsigned io_threads;
 	unsigned work_threads;
 	bool enable_voting;
+	unsigned bootstrap_connections;
+	std::string callback_address;
+	uint16_t callback_port;
+	std::string callback_target;
     static std::chrono::seconds constexpr keepalive_period = std::chrono::seconds (60);
     static std::chrono::seconds constexpr keepalive_cutoff = keepalive_period * 5;
 	static std::chrono::minutes constexpr wallet_backup_interval = std::chrono::minutes (5);
@@ -411,12 +422,10 @@ public:
     void stop ();
     std::shared_ptr <rai::node> shared ();
 	int store_version ();
-	void process_unchecked (std::shared_ptr <rai::bootstrap_attempt>);
     void process_confirmed (rai::block const &);
 	void process_message (rai::message &, rai::endpoint const &);
     void process_receive_republish (std::unique_ptr <rai::block>);
-    void process_receive_many (rai::block const &, std::function <void (rai::process_return, rai::block const &)> = [] (rai::process_return, rai::block const &) {});
-    void process_receive_many (MDB_txn *, rai::block const &, std::function <void (rai::process_return, rai::block const &)> = [] (rai::process_return, rai::block const &) {});
+    void process_receive_many (rai::block const &, std::function <void (MDB_txn *, rai::process_return, rai::block const &)> = [] (MDB_txn *, rai::process_return, rai::block const &) {});
     rai::process_return process_receive_one (MDB_txn *, rai::block const &);
 	rai::process_return process (rai::block const &);
     void keepalive_preconfigured (std::vector <std::string> const &);
